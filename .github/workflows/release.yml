@@ -1,55 +1,14 @@
 name: Release Build
-on:
-  push:
-    branches:
-      - release/*
-    paths-ignore:
-      - '**/README*'
-      - '**.md'
-      - .gitignore
-      - docs/**
-      - algvalidation/**
-  repository_dispatch:
-    types: manual-run
+
+on: 
+  workflow_dispatch:
+    inputs:
+      releaseVersion:
+        description: 'The official version string (number, alphanumeric, etc)'     
+        required: true
 
 jobs:
-  build-tag:
-    runs-on: ubuntu-latest
-    name: Generate Tag
-    outputs:
-      latest-tag: ${{ steps.auto-tag.outputs.last-build-number }}
-      commit-tag: ${{ steps.auto-tag.outputs.new-build-number }}
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v2
-        with:
-          # Number of commits to fetch. 0 indicates all history for all branches and tags - useful for tagging.
-          fetch-depth: '0'
-
-      - name: Extract branch name
-        shell: bash
-        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
-        id: extract_branch
-
-      - id: auto-tag
-        uses: ./.github/actions/autotag
-        with:
-          branch: ${branch}
-
-      - id: finalize-tag
-        uses: ./.github/actions/pushtag
-        with:
-          tag-to-push: ${{ steps.auto-tag.outputs.new-build-number }}
-
-      - name: Clean Tagging Workspace
-        if: ${{ always() }}
-        run: |
-          echo "cleaning up $GITHUB_WORKSPACE"
-          sudo rm -rf "$GITHUB_WORKSPACE"/*
-          sudo rm -rf "$GITHUB_WORKSPACE/.git"
-
   build:
-    needs: build-tag
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -60,12 +19,12 @@ jobs:
 
       - name: Run Build
         run: |
-            TAG=${{needs.build-tag.outputs.commit-tag}} make
+            TAG=${{ github.event.inputs.releaseVersion }} make
 
       - name: Cleanup Tag on Cancelled Workflow
         if: ${{ cancelled() }}
         run: |
-          git push --delete origin ${{ needs.build-tag.outputs.commit-tag }}
+          git push --delete origin ${{ github.event.inputs.releaseVersion }}
 
       - name: Clean Workspace
         if: always()
